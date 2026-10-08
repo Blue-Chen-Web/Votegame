@@ -29,8 +29,8 @@
 
   <!-- 頂部狀態 -->
   <div style="max-width: 480px; margin: 0 auto 8px auto; display: flex; justify-content: space-between; font-size: 11px; color: #64748b;">
-    <span id="net-status" style="color: #10b981;">● 純原生引擎 (參數鎖定保護)</span>
-    <a href="javascript:void(0)" onclick="clearAndReset()" style="color: #818cf8; text-decoration: none;">[強制清除快取重置]</a>
+    <span id="net-status" style="color: #10b981;">● 系統已就緒</span>
+    <a href="javascript:void(0)" onclick="clearAndReset()" style="color: #818cf8; text-decoration: none;">[強制重置]</a>
   </div>
 
   <!-- 1. 首頁畫面 -->
@@ -98,7 +98,6 @@
       playerId: "p_" + Math.random().toString(36).substring(2, 9),
       roomData: null,
       timer: null,
-      // 暫存使用者正在打字的設定值，防止每秒輪詢被刷掉
       localSettings: {
         thresholdCount: null,
         rewardPoints: null,
@@ -109,12 +108,28 @@
       }
     };
 
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("room")) document.getElementById("input-room").value = params.get("room").toUpperCase().trim();
-      const saved = localStorage.getItem("vote_pname_final");
-      if (saved) document.getElementById("input-name").value = saved;
-    } catch(e) {}
+    // 啟動時自動解析網址中的 room 參數（無論有沒有其他雜項參數）
+    function initUrlParams() {
+      try {
+        const urlObj = new URL(window.location.href);
+        const roomCode = urlObj.searchParams.get("room");
+        if (roomCode) {
+          const cleanRoom = roomCode.trim().toUpperCase();
+          state.roomId = cleanRoom;
+          const inputEl = document.getElementById("input-room");
+          if (inputEl) inputEl.value = cleanRoom;
+        }
+
+        const saved = localStorage.getItem("vote_pname_final");
+        if (saved) {
+          const nameEl = document.getElementById("input-name");
+          if (nameEl) nameEl.value = saved;
+        }
+      } catch(e) {
+        console.error("URL 解析異常:", e);
+      }
+    }
+    initUrlParams();
 
     function clearAndReset() {
       try { localStorage.clear(); } catch(e){}
@@ -138,7 +153,7 @@
           const data = await apiRequest(`vote_rooms/${code}`, "GET");
           if (!data) {
             if (state.role === "player") {
-              alert("房間已被解散！");
+              alert("房間已被解散或關閉！");
               exitRoom();
             }
             return;
@@ -224,7 +239,6 @@
       });
     }
 
-    // 當主持人手動打字時，暫存本機狀態，避免被背景輪詢覆寫
     function handleSettingInput() {
       state.localSettings.isEditing = true;
       const thEl = document.getElementById("host-threshold-input");
@@ -242,7 +256,6 @@
       if (exEl) state.localSettings.exitPenaltyPoints = parseInt(exEl.value, 10) || 0;
       if (shEl) state.localSettings.showExitResult = shEl.checked;
 
-      // 提示使用者有未儲存的變更
       const saveBtn = document.getElementById("btn-save-settings");
       if (saveBtn) {
         saveBtn.innerText = "⚠️ 點此儲存並套用設定";
@@ -255,4 +268,46 @@
       const thEl = document.getElementById("host-threshold-input");
       const rwEl = document.getElementById("host-reward-input");
       const deEl = document.getElementById("host-deduct-exit-check");
-      const exEl = document.getElementById("host-exit
+      const exEl = document.getElementById("host-exit-penalty-input");
+      const shEl = document.getElementById("host-show-exit-check");
+
+      const countInput = parseInt(thEl?.value || state.localSettings.thresholdCount, 10);
+      const rewardInput = parseInt(rwEl?.value || state.localSettings.rewardPoints, 10);
+      const deductExitChecked = deEl ? deEl.checked : state.localSettings.deductExit;
+      const exitPenaltyInput = parseInt(exEl?.value || state.localSettings.exitPenaltyPoints, 10) || 0;
+      const showExitChecked = shEl ? shEl.checked : state.localSettings.showExitResult;
+
+      if (isNaN(countInput) || countInput < 1) {
+        alert("請輸入有效的門檻人數！");
+        return;
+      }
+      if (isNaN(rewardInput) || rewardInput < 0) {
+        alert("請輸入有效的獎勵點數！");
+        return;
+      }
+
+      await apiRequest(`vote_rooms/${state.roomId}`, "PATCH", {
+        thresholdCount: countInput,
+        rewardPoints: rewardInput,
+        deductExit: deductExitChecked,
+        exitPenaltyPoints: deductExitChecked ? exitPenaltyInput : 0,
+        showExitResult: showExitChecked
+      });
+
+      state.localSettings.isEditing = false;
+      const saveBtn = document.getElementById("btn-save-settings");
+      if (saveBtn) {
+        saveBtn.innerText = "✓ 設定已儲存套用";
+        saveBtn.style.backgroundColor = "#059669";
+        setTimeout(() => {
+          if (saveBtn) {
+            saveBtn.innerText = "💾 儲存並套用設定";
+            saveBtn.style.backgroundColor = "#4f46e5";
+          }
+        }, 1500);
+      }
+    }
+
+    async function hostRevealResults() {
+      if (!state.roomData) return;
+      const players = { ...(state.room
