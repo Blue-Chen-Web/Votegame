@@ -27,13 +27,13 @@
 </head>
 <body>
 
-  <!-- 頂部連線狀態 -->
+  <!-- 頂部狀態列 -->
   <div style="max-width: 480px; margin: 0 auto 8px auto; display: flex; justify-content: space-between; font-size: 11px; color: #64748b;">
-    <span id="net-status">● 系統已就緒 (零外部阻塞引擎)</span>
+    <span id="net-status">● 系統已就緒 (雙軌容錯引擎)</span>
     <a href="javascript:void(0)" onclick="clearAndReset()" style="color: #818cf8; text-decoration: none;">[重置快取]</a>
   </div>
 
-  <!-- 1. 首頁入口畫面 -->
+  <!-- 1. 首頁畫面 -->
   <div id="view-home" class="card">
     <div style="text-align: center; margin-bottom: 20px;">
       <span class="badge">互動現場實驗</span>
@@ -43,16 +43,16 @@
 
     <div style="background: #0f172a; padding: 14px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; font-size: 12px; line-height: 1.6;">
       <div style="font-size: 13px; font-weight: bold; color: #cbd5e1; margin-bottom: 6px;">🎯 遊戲基本規則：</div>
-      <p>1. 每位學員起始均擁有 <b style="color:#38bdf8;">100 元</b> 本金點數。</p>
+      <p>1. 每位學員起始擁有 <b style="color:#38bdf8;">100 元</b> 本金點數。</p>
       <p>2. 每局可自由選擇「<b style="color:#34d399;">加入</b>」或「<b style="color:#cbd5e1;">退出</b>」：</p>
       <div style="padding-left: 10px; color: #94a3b8; margin: 4px 0;">
-        • <b>選擇加入</b>：固定扣除 <b>10 元</b> 投入點數。<br/>
+        • <b>選擇加入</b>：固定扣除 <b>10 元</b> 投入成本。<br/>
         • <b>選擇退出</b>：依據講師設定扣除懲罰或不扣除點數。
       </div>
       <p>3. 結算條件（門檻與獎勵點數由講師動態決定）：</p>
       <div style="padding-left: 10px; color: #94a3b8;">
-        • <b>達標</b>：加入投票人數 $\ge$ 門檻值，加入者獲得講師設定的獎勵點數。<br/>
-        • <b>未達標</b>：加入投票人數 $<$ 門檻值，加入者損失投入之成本。
+        • <b>達標</b>：加入人數 $\ge$ 門檻值，加入者獲得講師設定的獎勵點數。<br/>
+        • <b>未達標</b>：加入人數 $<$ 門檻值，加入者損失投入之成本。
       </div>
     </div>
 
@@ -74,19 +74,19 @@
   <!-- 3. 學員手機介面 -->
   <div id="view-player" class="card hidden"></div>
 
-  <!-- 官方 Firebase SDK 放置於底部非同步載入 -->
+  <!-- 官方 Firebase SDK 放置於底部 -->
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-database-compat.js"></script>
 
   <script>
-    // 拆分 API Key 避開 GitHub 機器人誤報偵測
     const p1 = "AIzaSyCdy8u9yX2";
     const p2 = "Ep09MGBR6UB9pTV21Qu4g_BM";
+    const FIREBASE_BASE = "https://game-theory-9aaae-default-rtdb.firebaseio.com";
 
     const firebaseConfig = {
       apiKey: p1 + p2,
       authDomain: "game-theory-9aaae.firebaseapp.com",
-      databaseURL: "https://game-theory-9aaae-default-rtdb.firebaseio.com",
+      databaseURL: FIREBASE_BASE,
       projectId: "game-theory-9aaae",
       storageBucket: "game-theory-9aaae.firebasestorage.app",
       messagingSenderId: "901157590930",
@@ -95,19 +95,81 @@
     };
 
     let db = null;
+    let useRestMode = false; // 是否降級為純 REST API 模式
+
     function initFirebase() {
       try {
         if (window.firebase && !firebase.apps.length) {
           firebase.initializeApp(firebaseConfig);
           db = firebase.database();
-          document.getElementById("net-status").innerHTML = "<span style='color:#10b981;'>● 雲端連線正常</span>";
         } else if (window.firebase) {
           db = firebase.database();
         }
       } catch (err) {
-        console.error("Firebase 連線異常:", err);
+        console.warn("SDK 初始化異常，啟用 REST 模式:", err);
+        useRestMode = true;
       }
       return db;
+    }
+
+    // 核心通用寫入函數 (SDK 優先，失敗自動轉 REST API)
+    async function writeData(path, data) {
+      initFirebase();
+      if (db && !useRestMode) {
+        try {
+          await db.ref(path).set(data);
+          return true;
+        } catch(e) {
+          console.warn("SDK set 失敗，切換至 REST API 重試:", e);
+        }
+      }
+      // 降級 REST API
+      const res = await fetch(`${FIREBASE_BASE}/${path}.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      return true;
+    }
+
+    // 核心通用更新函數
+    async function updateData(path, data) {
+      initFirebase();
+      if (db && !useRestMode) {
+        try {
+          await db.ref(path).update(data);
+          return true;
+        } catch(e) {
+          console.warn("SDK update 失敗，切換至 REST API 重試:", e);
+        }
+      }
+      const res = await fetch(`${FIREBASE_BASE}/${path}.json`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return true;
+    }
+
+    // 核心通用讀取函數
+    async function readData(path) {
+      initFirebase();
+      if (db && !useRestMode) {
+        try {
+          const snap = await db.ref(path).once("value");
+          return snap.val();
+        } catch(e) {
+          console.warn("SDK read 失敗，切換至 REST API 重試:", e);
+        }
+      }
+      const res = await fetch(`${FIREBASE_BASE}/${path}.json`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
     }
 
     let state = {
@@ -115,13 +177,14 @@
       roomId: "",
       playerName: "",
       playerId: "p_" + Math.random().toString(36).substring(2, 9),
-      roomData: null
+      roomData: null,
+      syncTimer: null
     };
 
     try {
       const params = new URLSearchParams(window.location.search);
       if (params.get("room")) document.getElementById("input-room").value = params.get("room").toUpperCase().trim();
-      const savedName = localStorage.getItem("vote_user_name_v2");
+      const savedName = localStorage.getItem("vote_user_name_v3");
       if (savedName) document.getElementById("input-name").value = savedName;
     } catch(e){}
 
@@ -139,29 +202,34 @@
       if (viewName === "player") document.getElementById("view-player").classList.remove("hidden");
     }
 
-    let activeListener = null;
-    function listenRoom(code) {
-      const database = initFirebase();
-      if (!database) return;
-      if (activeListener) activeListener.off();
-      activeListener = database.ref("vote_rooms/" + code);
-      activeListener.on("value", snapshot => {
-        const val = snapshot.val();
-        if (!val) {
-          if (state.role === "player") {
-            alert("房間已解散！");
-            exitRoom();
+    function startListening(code) {
+      if (state.syncTimer) clearInterval(state.syncTimer);
+
+      async function sync() {
+        if (!state.roomId) return;
+        try {
+          const data = await readData("vote_rooms/" + code);
+          if (!data) {
+            if (state.role === "player") {
+              alert("房間已解散！");
+              exitRoom();
+            }
+            return;
           }
-          return;
+          state.roomData = data;
+          if (state.role === "host") renderHost();
+          if (state.role === "player") renderPlayer();
+        } catch(e) {
+          console.error("同步延遲:", e);
         }
-        state.roomData = val;
-        if (state.role === "host") renderHost();
-        if (state.role === "player") renderPlayer();
-      });
+      }
+
+      sync();
+      state.syncTimer = setInterval(sync, 1000); // 每秒高頻即時輪詢
     }
 
     function exitRoom() {
-      if (activeListener) activeListener.off();
+      if (state.syncTimer) clearInterval(state.syncTimer);
       state.role = null;
       state.roomId = "";
       state.roomData = null;
@@ -169,51 +237,42 @@
       switchView("home");
     }
 
-    // --- 主持人功能 ---
+    // --- 主持人：建立房間 ---
     async function hostCreateRoom() {
       const btn = document.getElementById("btn-create-host");
       btn.innerText = "連線建立房間中...";
       btn.disabled = true;
 
-      const database = initFirebase();
-      if (!database) {
-        alert("正在連線至 Firebase，請重試！");
-        btn.innerText = "我是講師 / 主持人（建立新房間）";
-        btn.disabled = false;
-        return;
-      }
-
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       const initData = {
         id: code,
-        status: "LOBBY", // LOBBY, VOTING, REVEALED
+        status: "LOBBY",
         round: 1,
-        thresholdCount: 5,       // 門檻人數
-        rewardPoints: 15,        // [功能1] 通過門檻獎勵點數 (預設15)
-        deductExit: false,       // [功能2] 是否扣除退出者點數
-        exitPenaltyPoints: 0,    // [功能2] 退出者扣除點數值 (預設0)
-        showExitResult: true,    // 是否讓退出者看最後結果
+        thresholdCount: 5,
+        rewardPoints: 15,
+        deductExit: false,
+        exitPenaltyPoints: 0,
+        showExitResult: true,
         players: {},
         history: []
       };
 
       try {
-        await database.ref("vote_rooms/" + code).set(initData);
+        await writeData("vote_rooms/" + code, initData);
         state.roomId = code;
         state.role = "host";
         switchView("host");
-        listenRoom(code);
+        startListening(code);
       } catch (err) {
-        alert("建立房間失敗：" + err.message);
+        alert("建立房間失敗！\n\n錯誤訊息：" + err.message + "\n\n常見原因：請確認 Firebase Realtime Database 的 Rules（規則）是否設為 .read: true, .write: true");
       } finally {
         btn.innerText = "我是講師 / 主持人（建立新房間）";
         btn.disabled = false;
       }
     }
 
-    // 啟動下一輪 / 開局
     async function hostStartNextRound() {
-      if (!state.roomData || !db) return;
+      if (!state.roomData) return;
       const players = state.roomData.players || {};
       const keys = Object.keys(players);
       if (keys.length < 2) {
@@ -229,9 +288,176 @@
         }
       });
 
-      await db.ref("vote_rooms/" + state.roomId).update({
+      await updateData("vote_rooms/" + state.roomId, {
         status: "VOTING",
         round: (state.roomData.round || 1) + (state.roomData.status === "REVEALED" ? 1 : 0),
         players: updated
       });
     }
+
+    async function hostUpdateSettings() {
+      if (!state.roomData) return;
+      const countInput = parseInt(document.getElementById("host-threshold-input").value, 10);
+      const rewardInput = parseInt(document.getElementById("host-reward-input").value, 10);
+      const deductExitChecked = document.getElementById("host-deduct-exit-check").checked;
+      const exitPenaltyInput = parseInt(document.getElementById("host-exit-penalty-input").value, 10) || 0;
+      const showExitChecked = document.getElementById("host-show-exit-check").checked;
+
+      if (isNaN(countInput) || countInput < 1) {
+        alert("請輸入有效的整數門檻人數！");
+        return;
+      }
+      if (isNaN(rewardInput) || rewardInput < 0) {
+        alert("請輸入有效的通過門檻獎勵點數！");
+        return;
+      }
+
+      await updateData("vote_rooms/" + state.roomId, {
+        thresholdCount: countInput,
+        rewardPoints: rewardInput,
+        deductExit: deductExitChecked,
+        exitPenaltyPoints: deductExitChecked ? exitPenaltyInput : 0,
+        showExitResult: showExitChecked
+      });
+      alert("設定已儲存並同步給全場！");
+    }
+
+    async function hostRevealResults() {
+      if (!state.roomData) return;
+      const players = { ...(state.roomData.players || {}) };
+      const list = Object.values(players);
+      const totalCount = list.length;
+      if (totalCount === 0) return;
+
+      const thresholdCount = state.roomData.thresholdCount || Math.ceil(totalCount * 0.5);
+      const rewardPoints = state.roomData.rewardPoints !== undefined ? state.roomData.rewardPoints : 15;
+      const deductExit = !!state.roomData.deductExit;
+      const exitPenalty = deductExit ? (state.roomData.exitPenaltyPoints || 0) : 0;
+
+      let joinCount = 0;
+      let exitCount = 0;
+      list.forEach(p => {
+        if (p.currentChoice === "JOIN") joinCount++;
+        else exitCount++;
+      });
+
+      const actualRate = Math.round((joinCount / totalCount) * 100);
+      const thresholdRate = Math.round((thresholdCount / totalCount) * 100);
+      const isSuccess = joinCount >= thresholdCount;
+
+      Object.keys(players).forEach(k => {
+        const p = players[k];
+        let change = 0;
+        if (p.currentChoice === "JOIN") {
+          change = isSuccess ? (-10 + rewardPoints) : -10;
+        } else {
+          change = deductExit ? -Math.abs(exitPenalty) : 0;
+        }
+
+        p.score = (p.score !== undefined ? p.score : 100) + change;
+        p.lastChange = change;
+        p.wasSuccess = isSuccess;
+      });
+
+      const roundRecord = {
+        round: state.roomData.round || 1,
+        totalCount,
+        joinCount,
+        exitCount,
+        thresholdCount,
+        thresholdRate,
+        actualRate,
+        rewardPoints,
+        deductExit,
+        exitPenalty,
+        isSuccess,
+        timestamp: Date.now()
+      };
+
+      const history = [...(state.roomData.history || []), roundRecord];
+
+      await updateData("vote_rooms/" + state.roomId, {
+        status: "REVEALED",
+        players: players,
+        history: history
+      });
+    }
+
+    async function hostAddTestBots() {
+      if (!state.roomData) return;
+      const count = Object.keys(state.roomData.players || {}).length;
+      const updates = {};
+      for (let i = 1; i <= 5; i++) {
+        const bid = "bot_" + Date.now() + "_" + i;
+        updates[bid] = {
+          id: bid,
+          name: "模擬學員" + (count + i),
+          score: 100,
+          isBot: true,
+          currentChoice: null
+        };
+      }
+      await updateData("vote_rooms/" + state.roomId + "/players", updates);
+    }
+
+    async function hostBotsRandomChoose() {
+      if (!state.roomData) return;
+      const players = state.roomData.players || {};
+      const updates = {};
+      Object.values(players).forEach(p => {
+        if (p?.isBot && !p?.currentChoice) {
+          updates[`${p.id}/currentChoice`] = Math.random() > 0.4 ? "JOIN" : "EXIT";
+        }
+      });
+      await updateData("vote_rooms/" + state.roomId + "/players", updates);
+    }
+
+    // --- 學員功能 ---
+    async function playerJoin() {
+      const rid = document.getElementById("input-room").value.trim().toUpperCase();
+      const name = document.getElementById("input-name").value.trim();
+      if (!rid || !name) { alert("請輸入 6 碼房號與姓名！"); return; }
+
+      try {
+        const room = await readData("vote_rooms/" + rid);
+        if (!room) { alert("找不到該房間，請核對房號！"); return; }
+
+        state.roomId = rid;
+        state.playerName = name;
+        state.role = "player";
+        localStorage.setItem("vote_user_name_v3", name);
+
+        const existingScore = room.players?.[state.playerId]?.score;
+        const initialScore = existingScore !== undefined ? existingScore : 100;
+
+        await writeData(`vote_rooms/${rid}/players/${state.playerId}`, {
+          id: state.playerId,
+          name: name,
+          score: initialScore,
+          currentChoice: null
+        });
+
+        switchView("player");
+        startListening(rid);
+      } catch (err) {
+        alert("加入失敗：" + err.message);
+      }
+    }
+
+    async function playerMakeChoice(opt) {
+      if (!state.roomId) return;
+      await updateData(`vote_rooms/${state.roomId}/players/${state.playerId}`, {
+        currentChoice: opt
+      });
+    }
+
+    // --- 主持人渲染 ---
+    function renderHost() {
+      const room = state.roomData || {};
+      const players = Object.values(room.players || {});
+      const totalCount = players.length;
+      const answeredCount = players.filter(p => p.currentChoice).length;
+      const joinCount = players.filter(p => p.currentChoice === "JOIN").length;
+      const currentRate = totalCount > 0 ? Math.round((joinCount / totalCount) * 100) : 0;
+      
+      const thresholdCount = room.thresholdCount !== undefined ? room.thresholdCount : Math.ceil(totalCount * 0.5);
