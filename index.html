@@ -8,7 +8,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background-color: #0f172a; color: #f8fafc; min-height: 100vh; padding: 12px; }
     .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); max-width: 480px; margin: 0 auto; }
-    .host-card { background-color: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 20px; max-width: 1050px; margin: 0 auto; }
+    .host-card { background-color: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 20px; max-width: 1100px; margin: 0 auto; }
     .btn { display: block; width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: bold; border: none; cursor: pointer; text-align: center; transition: all 0.15s; }
     .btn:active { transform: scale(0.98); }
     .btn-primary { background-color: #4f46e5; color: white; margin-top: 10px; }
@@ -19,9 +19,9 @@
     .input-field { width: 100%; background: #0f172a; border: 1px solid #475569; color: white; padding: 12px; border-radius: 10px; font-size: 16px; text-align: center; margin-bottom: 10px; }
     .badge { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: bold; background: #312e81; color: #818cf8; }
     .stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 12px; text-align: center; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .player-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .param-box { background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -33,7 +33,7 @@
     <a href="javascript:void(0)" onclick="clearAndReset()" style="color: #818cf8; text-decoration: none;">[重置快取]</a>
   </div>
 
-  <!-- 1. 首頁入口畫面 (靜態 HTML，0 秒即時秒開) -->
+  <!-- 1. 首頁入口畫面 -->
   <div id="view-home" class="card">
     <div style="text-align: center; margin-bottom: 20px;">
       <span class="badge">互動現場實驗</span>
@@ -41,19 +41,18 @@
       <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">團隊協調 · 門檻公共財賽局</p>
     </div>
 
-    <!-- 規則說面板 -->
     <div style="background: #0f172a; padding: 14px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; font-size: 12px; line-height: 1.6;">
-      <div style="font-size: 13px; font-weight: bold; color: #cbd5e1; margin-bottom: 6px;">🎯 遊戲規則：</div>
+      <div style="font-size: 13px; font-weight: bold; color: #cbd5e1; margin-bottom: 6px;">🎯 遊戲基本規則：</div>
       <p>1. 每位學員起始均擁有 <b style="color:#38bdf8;">100 元</b> 本金點數。</p>
       <p>2. 每局可自由選擇「<b style="color:#34d399;">加入</b>」或「<b style="color:#cbd5e1;">退出</b>」：</p>
       <div style="padding-left: 10px; color: #94a3b8; margin: 4px 0;">
-        • <b>選擇加入</b>：扣除 <b>10 元</b> 投入點數。<br/>
-        • <b>選擇退出</b>：不扣任何點數（保持原狀）。
+        • <b>選擇加入</b>：固定扣除 <b>10 元</b> 投入點數。<br/>
+        • <b>選擇退出</b>：依據講師設定扣除懲罰或不扣除點數。
       </div>
-      <p>3. 結算條件（由講師設定門檻）：</p>
+      <p>3. 結算條件（門檻與獎勵點數由講師動態決定）：</p>
       <div style="padding-left: 10px; color: #94a3b8;">
-        • <b>達標</b>（加入投票率 $\ge$ 門檻）：加入者每人獲得 <b style="color:#34d399;">15 元</b>。<br/>
-        • <b>未達標</b>（加入投票率 $<$ 門檻）：加入者損失投入的 10 元。
+        • <b>達標</b>：加入投票人數 $\ge$ 門檻值，加入者獲得講師設定的獎勵點數。<br/>
+        • <b>未達標</b>：加入投票人數 $<$ 門檻值，加入者損失投入之成本。
       </div>
     </div>
 
@@ -75,7 +74,7 @@
   <!-- 3. 學員手機介面 -->
   <div id="view-player" class="card hidden"></div>
 
-  <!-- 官方 Firebase SDK 放置於底部，避免阻塞首頁渲染 -->
+  <!-- 官方 Firebase SDK 放置於底部非同步載入 -->
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-database-compat.js"></script>
 
@@ -112,7 +111,7 @@
     }
 
     let state = {
-      role: null, // 'host' | 'player'
+      role: null,
       roomId: "",
       playerName: "",
       playerId: "p_" + Math.random().toString(36).substring(2, 9),
@@ -122,7 +121,7 @@
     try {
       const params = new URLSearchParams(window.location.search);
       if (params.get("room")) document.getElementById("input-room").value = params.get("room").toUpperCase().trim();
-      const savedName = localStorage.getItem("vote_user_name");
+      const savedName = localStorage.getItem("vote_user_name_v2");
       if (savedName) document.getElementById("input-name").value = savedName;
     } catch(e){}
 
@@ -189,8 +188,11 @@
         id: code,
         status: "LOBBY", // LOBBY, VOTING, REVEALED
         round: 1,
-        thresholdCount: 5, // 門檻加入人數 (整數)
-        showExitResult: true, // 是否讓退出者看到最後結果
+        thresholdCount: 5,       // 門檻人數
+        rewardPoints: 15,        // [功能1] 通過門檻獎勵點數 (預設15)
+        deductExit: false,       // [功能2] 是否扣除退出者點數
+        exitPenaltyPoints: 0,    // [功能2] 退出者扣除點數值 (預設0)
+        showExitResult: true,    // 是否讓退出者看最後結果
         players: {},
         history: []
       };
@@ -219,13 +221,10 @@
         return;
       }
 
-      // 如果尚未設定過門檻，預設以目前人數的一半（四捨五入）作為門檻
-      let currentThreshold = state.roomData.thresholdCount || Math.ceil(keys.length * 0.5);
-
       const updated = { ...players };
       Object.keys(updated).forEach(k => {
         if (updated[k]) {
-          updated[k].currentChoice = null; // 清空本輪選擇
+          updated[k].currentChoice = null;
           updated[k].lastChange = 0;
         }
       });
@@ -233,450 +232,6 @@
       await db.ref("vote_rooms/" + state.roomId).update({
         status: "VOTING",
         round: (state.roomData.round || 1) + (state.roomData.status === "REVEALED" ? 1 : 0),
-        thresholdCount: currentThreshold,
         players: updated
       });
     }
-
-    // 更新門檻設定與退出者顯示設定
-    async function hostUpdateSettings() {
-      if (!state.roomData || !db) return;
-      const countInput = parseInt(document.getElementById("host-threshold-input").value, 10);
-      const showExitChecked = document.getElementById("host-show-exit-check").checked;
-
-      if (isNaN(countInput) || countInput < 1) {
-        alert("請輸入有效的整數門檻人數！");
-        return;
-      }
-
-      await db.ref("vote_rooms/" + state.roomId).update({
-        thresholdCount: countInput,
-        showExitResult: showExitChecked
-      });
-      alert("設定已儲存！");
-    }
-
-    // 主持人公布結果
-    async function hostRevealResults() {
-      if (!state.roomData || !db) return;
-      const players = { ...(state.roomData.players || {}) };
-      const list = Object.values(players);
-      const totalCount = list.length;
-      if (totalCount === 0) return;
-
-      const thresholdCount = state.roomData.thresholdCount || Math.ceil(totalCount * 0.5);
-      
-      // 計算加入者與退出者
-      let joinCount = 0;
-      let exitCount = 0;
-      list.forEach(p => {
-        if (p.currentChoice === "JOIN") joinCount++;
-        else exitCount++; // 未選或選 EXIT 視為退出
-      });
-
-      const actualRate = Math.round((joinCount / totalCount) * 100);
-      const thresholdRate = Math.round((thresholdCount / totalCount) * 100);
-      const isSuccess = joinCount >= thresholdCount;
-
-      // 結算學員點數
-      // 加入者扣除 10 元：若成功獲得 15 元 (淨賺 +5)，若失敗拿回 0 元 (淨損 -10)
-      // 退出者不扣不給 (淨得 0)
-      Object.keys(players).forEach(k => {
-        const p = players[k];
-        let change = 0;
-        if (p.currentChoice === "JOIN") {
-          if (isSuccess) {
-            change = -10 + 15; // +5 元
-          } else {
-            change = -10; // -10 元
-          }
-        } else {
-          change = 0; // 退出者不變
-        }
-
-        p.score = (p.score !== undefined ? p.score : 100) + change;
-        p.lastChange = change;
-        p.wasSuccess = isSuccess;
-      });
-
-      const roundRecord = {
-        round: state.roomData.round || 1,
-        totalCount,
-        joinCount,
-        exitCount,
-        thresholdCount,
-        thresholdRate,
-        actualRate,
-        isSuccess,
-        timestamp: Date.now()
-      };
-
-      const history = [...(state.roomData.history || []), roundRecord];
-
-      await db.ref("vote_rooms/" + state.roomId).update({
-        status: "REVEALED",
-        players: players,
-        history: history
-      });
-    }
-
-    // 模擬輔助
-    async function hostAddTestBots() {
-      if (!state.roomData || !db) return;
-      const count = Object.keys(state.roomData.players || {}).length;
-      const updates = {};
-      for (let i = 1; i <= 5; i++) {
-        const bid = "bot_" + Date.now() + "_" + i;
-        updates["vote_rooms/" + state.roomId + "/players/" + bid] = {
-          id: bid,
-          name: "模擬學員" + (count + i),
-          score: 100,
-          isBot: true,
-          currentChoice: null
-        };
-      }
-      await db.ref().update(updates);
-    }
-
-    async function hostBotsRandomChoose() {
-      if (!state.roomData || !db) return;
-      const players = state.roomData.players || {};
-      const updates = {};
-      Object.values(players).forEach(p => {
-        if (p?.isBot && !p?.currentChoice) {
-          updates["vote_rooms/" + state.roomId + "/players/" + p.id + "/currentChoice"] = Math.random() > 0.4 ? "JOIN" : "EXIT";
-        }
-      });
-      await db.ref().update(updates);
-    }
-
-    // --- 學員加入與決策 ---
-    async function playerJoin() {
-      const rid = document.getElementById("input-room").value.trim().toUpperCase();
-      const name = document.getElementById("input-name").value.trim();
-      if (!rid || !name) { alert("請輸入 6 碼房號與姓名！"); return; }
-
-      const database = initFirebase();
-      if (!database) { alert("尚未連上伺服器，請重新整理！"); return; }
-
-      try {
-        const snap = await database.ref("vote_rooms/" + rid).once("value");
-        if (!snap.exists()) { alert("找不到該房間，請確認房號！"); return; }
-
-        state.roomId = rid;
-        state.playerName = name;
-        state.role = "player";
-        localStorage.setItem("vote_user_name", name);
-
-        // 如果是新學員，預設 100 元
-        const existingData = snap.val().players?.[state.playerId];
-        const initialScore = existingData?.score !== undefined ? existingData.score : 100;
-
-        await database.ref("vote_rooms/" + rid + "/players/" + state.playerId).update({
-          id: state.playerId,
-          name: name,
-          score: initialScore,
-          currentChoice: null
-        });
-
-        switchView("player");
-        listenRoom(rid);
-      } catch (err) {
-        alert("加入失敗：" + err.message);
-      }
-    }
-
-    async function playerMakeChoice(opt) {
-      if (!state.roomId || !db) return;
-      await db.ref("vote_rooms/" + state.roomId + "/players/" + state.playerId).update({
-        currentChoice: opt
-      });
-    }
-
-    // ==========================================
-    // 渲染主持人畫面 (Host)
-    // ==========================================
-    function renderHost() {
-      const room = state.roomData || {};
-      const players = Object.values(room.players || {});
-      const totalCount = players.length;
-      const answeredCount = players.filter(p => p.currentChoice).length;
-      const joinCount = players.filter(p => p.currentChoice === "JOIN").length;
-      const currentRate = totalCount > 0 ? Math.round((joinCount / totalCount) * 100) : 0;
-      
-      const thresholdCount = room.thresholdCount !== undefined ? room.thresholdCount : Math.ceil(totalCount * 0.5);
-      const thresholdRate = totalCount > 0 ? Math.round((thresholdCount / totalCount) * 100) : 0;
-      const history = room.history || [];
-
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + window.location.pathname + '?room=' + state.roomId)}`;
-
-      document.getElementById("view-host").innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-bottom:1px solid #334155; padding-bottom:16px; margin-bottom:16px;">
-          <div>
-            <h1 style="font-size:22px;">主持人監控大廳 · 門檻投票賽局</h1>
-            <div style="font-size:13px; color:#94a3b8; margin-top:4px;">
-              狀態：<span style="color:#38bdf8; font-weight:bold;">${room.status === "LOBBY" ? "等待學員進入大廳" : room.status === "VOTING" ? "第 " + room.round + " 輪投票進行中" : "第 " + room.round + " 輪結果已揭曉"}</span>
-              · 共 ${totalCount} 位學員在線
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:12px; background:#0f172a; padding:10px 14px; border-radius:12px; border:1px solid #334155;">
-            <div style="text-align:right;">
-              <div style="font-size:11px; color:#94a3b8;">房間代碼</div>
-              <div style="font-size:24px; font-weight:900; color:#818cf8; font-family:monospace;">${state.roomId}</div>
-            </div>
-            <img src="${qrUrl}" style="width:65px; height:65px; border-radius:6px; background:white; padding:2px;" alt="QR" />
-          </div>
-        </div>
-
-        <!-- 門檻與規則控制列 -->
-        <div style="background:#0f172a; padding:14px; border-radius:12px; border:1px solid #334155; margin-bottom:16px;">
-          <div style="font-size:13px; font-weight:bold; color:#cbd5e1; margin-bottom:10px;">⚙️ 本輪門檻值設定與控制：</div>
-          <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:center;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:13px; color:#94a3b8;">加入人數門檻：</span>
-              <input id="host-threshold-input" type="number" min="1" max="${Math.max(totalCount, 1)}" value="${thresholdCount}" style="width:70px; background:#1e293b; border:1px solid #475569; color:white; padding:6px; border-radius:6px; text-align:center; font-weight:bold;" />
-              <span style="font-size:13px; color:#818cf8;">人 (相當於 ${thresholdRate}% 投票率)</span>
-            </div>
-
-            <div style="display:flex; align-items:center; gap:6px;">
-              <input type="checkbox" id="host-show-exit-check" ${room.showExitResult !== false ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;" />
-              <label for="host-show-exit-check" style="font-size:13px; color:#cbd5e1; cursor:pointer;">允許按下退出的學員看最後結果</label>
-            </div>
-
-            <button class="btn btn-secondary" style="width:auto; padding:6px 14px; margin:0;" onclick="hostUpdateSettings()">儲存門檻設定</button>
-          </div>
-        </div>
-
-        <!-- 操作按鈕列 -->
-        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">
-          ${room.status === "LOBBY" ? `
-            <button class="btn btn-primary" style="width:auto; padding:10px 22px;" onclick="hostStartNextRound()">🚀 所有人已到齊，開始第一輪</button>
-          ` : `
-            <button class="btn btn-primary" style="width:auto; padding:10px 20px;" onclick="hostStartNextRound()">🔄 沿用/更新門檻，開展下一輪</button>
-          `}
-          ${room.status === "VOTING" ? `
-            <button class="btn" style="background:#059669; color:white; width:auto; padding:10px 22px;" onclick="hostRevealResults()">⚡ 人數全數完成，公布本輪結果！</button>
-          ` : ''}
-          <button class="btn btn-secondary" style="width:auto; padding:10px 14px;" onclick="hostAddTestBots()">+5 位模擬學員</button>
-          ${room.status === "VOTING" ? `<button class="btn btn-secondary" style="width:auto; padding:10px 14px; color:#fbbf24;" onclick="hostBotsRandomChoose()">模擬學員一鍵完成選擇</button>` : ''}
-          <button class="btn btn-secondary" style="width:auto; padding:10px 14px; color:#f87171;" onclick="exitRoom()">解散房間</button>
-        </div>
-
-        <!-- 即時儀表看板 -->
-        ${room.status !== "LOBBY" ? `
-          <div class="grid-3" style="margin-bottom:16px;">
-            <div class="stat-box">
-              <div style="font-size:11px; color:#94a3b8;">全場投票進度</div>
-              <div style="font-size:22px; font-weight:bold; color:#f8fafc; margin-top:4px;">${answeredCount} /${totalCount} 人</div>
-              <div style="font-size:11px; color:${answeredCount === totalCount ? '#34d399' : '#fbbf24'};">${answeredCount === totalCount ? '✓ 全員完成' : '等待決策中...'}</div>
-            </div>
-            <div class="stat-box">
-              <div style="font-size:11px; color:#94a3b8;">目前選擇加入人數</div>
-              <div style="font-size:22px; font-weight:bold; color:#34d399; margin-top:4px;">${joinCount} 人</div>
-              <div style="font-size:11px; color:#94a3b8;">門檻要求：${thresholdCount} 人</div>
-            </div>
-            <div class="stat-box">
-              <div style="font-size:11px; color:#94a3b8;">目前加入投票率 vs 門檻</div>
-              <div style="font-size:22px; font-weight:bold; color:${currentRate >= thresholdRate ? '#34d399' : '#f43f5e'}; margin-top:4px;">
-                ${currentRate}% <span style="font-size:14px; color:#94a3b8;">(門檻 ${thresholdRate}%)</span>
-              </div>
-              <div style="font-size:11px; font-weight:bold; color:${currentRate >= thresholdRate ? '#34d399' : '#f43f5e'};">
-                ${currentRate >= thresholdRate ? '✓ 達到得獎門檻 (+15元)' : '✕ 未達門檻 (扣除10元)'}
-              </div>
-            </div>
-          </div>
-        ` : ''}
-
-        <!-- 學員即時列表與排行榜 -->
-        <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:16px;">
-          <!-- 左側：本輪決策動態 -->
-          <div style="background:#0f172a; padding:16px; border-radius:12px; border:1px solid #334155;">
-            <div style="font-size:14px; font-weight:bold; margin-bottom:12px; display:flex; justify-content:space-between;">
-              <span>本輪學員選擇狀態</span>
-              <span style="font-size:12px; color:#94a3b8; font-weight:normal;">加入者扣10元，達標得15元</span>
-            </div>
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:8px;">
-              ${players.map(p => {
-                const hasChosen = !!p.currentChoice;
-                const isRevealed = room.status === "REVEALED";
-                let choiceText = "思考中...";
-                let choiceColor = "#64748b";
-                if (hasChosen) {
-                  if (p.currentChoice === "JOIN") {
-                    choiceText = "選擇加入";
-                    choiceColor = "#34d399";
-                  } else {
-                    choiceText = "選擇退出";
-                    choiceColor = "#94a3b8";
-                  }
-                }
-                return `
-                  <div class="player-card">
-                    <div>
-                      <div style="font-size:13px; font-weight:bold;">${p.name}</div>
-                      <div style="font-size:11px; color:#38bdf8; font-family:monospace;">點數：${p.score || 100} 元</div>
-                    </div>
-                    <div style="text-align:right;">
-                      <div style="font-size:12px; font-weight:bold; color:${choiceColor};">${choiceText}</div>${isRevealed && p.lastChange !== undefined ? `
-                        <div style="font-size:11px; font-weight:bold; color:${p.lastChange > 0 ? '#34d399' : p.lastChange < 0 ? '#f43f5e' : '#94a3b8'};">
-                          ${p.lastChange > 0 ? '+' + p.lastChange : p.lastChange} 元
-                        </div>
-                      ` : ''}
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          </div>
-
-          <!-- 右側：累積排行榜 -->
-          <div style="background:#0f172a; padding:16px; border-radius:12px; border:1px solid #334155;">
-            <div style="font-size:14px; font-weight:bold; margin-bottom:12px;">🏆 學員累積點數排行榜</div>
-            <div style="display:flex; flex-direction:column; gap:8px; max-height:450px; overflow-y:auto; padding-right:4px;">
-              ${[...players].sort((a,b) => (b.score||100) - (a.score||100)).map((p, idx) => `
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; border-bottom:1px solid #1e293b; padding-bottom:6px;">
-                  <div>
-                    <span style="font-weight:bold; width:24px; display:inline-block; color:${idx===0?'#fbbf24':idx===1?'#cbd5e1':idx===2?'#d97706':'#64748b'};">#${idx+1}</span>
-                    <span>${p.name}</span>
-                  </div>
-                  <div style="font-family:monospace; font-weight:bold; color:#38bdf8;">${p.score||100} 元</div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        </div>
-
-        <!-- 歷史回合演化歷程 -->
-        ${history.length > 0 ? `
-          <div style="margin-top:20px; background:#0f172a; padding:16px; border-radius:12px; border:1px solid #334155;">
-            <div style="font-size:14px; font-weight:bold; margin-bottom:12px;">📈 歷輪門檻與投票率演化歷史</div>
-            <div style="display:flex; gap:12px; overflow-x:auto;">
-              ${history.map(h => `
-                <div style="background:#1e293b; border:1px solid #334155; padding:12px; border-radius:10px; min-width:140px; text-align:center;">
-                  <div style="font-size:12px; color:#94a3b8;">第 ${h.round} 輪</div>
-                  <div style="font-size:20px; font-weight:900; color:${h.isSuccess?'#34d399':'#f43f5e'}; margin:4px 0;">
-                    ${h.actualRate}%
-                  </div>
-                  <div style="font-size:11px; color:#cbd5e1;">門檻要求: ${h.thresholdRate}% (${h.thresholdCount}人)</div>
-                  <div style="font-size:11px; font-weight:bold; margin-top:4px; color:${h.isSuccess?'#34d399':'#f43f5e'};">
-                    ${h.isSuccess ? '✓ 通過獎勵' : '✕ 未達門檻'}
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
-      `;
-    }
-
-    // ==========================================
-    // 渲染學員手機介面 (Player)
-    // ==========================================
-    function renderPlayer() {
-      const room = state.roomData || {};
-      const me = room.players?.[state.playerId];
-      const isRevealed = room.status === "REVEALED";
-      const isVoting = room.status === "VOTING";
-      const myChoice = me?.currentChoice;
-      const wasSuccess = me?.wasSuccess;
-      const showExitResult = room.showExitResult !== false; // 預設 true
-
-      document.getElementById("view-player").innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:10px 14px; border-radius:12px; border:1px solid #334155; margin-bottom:16px;">
-          <div>
-            <div style="font-size:11px; color:#94a3b8;">參賽者</div>
-            <div style="font-size:16px; font-weight:bold;">${me?.name || state.playerName}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:11px; color:#94a3b8;">現有點數</div>
-            <div style="font-size:20px; font-weight:bold; color:#38bdf8; font-family:monospace;">${me?.score !== undefined ? me.score : 100} 元</div>
-          </div>
-          <button class="btn btn-secondary" style="width:auto; padding:6px 12px; margin:0; font-size:12px;" onclick="exitRoom()">退出</button>
-        </div>
-
-        ${room.status === "LOBBY" ? `
-          <div style="text-align:center; padding:36px 10px;">
-            <div style="font-size:36px; margin-bottom:12px;">⏳</div>
-            <h3 style="font-size:18px;">已成功進入遊戲大廳</h3>
-            <p style="font-size:13px; color:#94a3b8; margin-top:6px;">起始擁有 100 元本金<br/>請等候主持人開啟第 1 輪投票！</p>
-            <div style="font-size:11px; color:#64748b; margin-top:16px;">房間代碼：${state.roomId}</div>
-          </div>
-        ` : `
-          <!-- 本輪揭曉結果顯示 -->
-          ${isRevealed ? `
-            <div style="margin-bottom:16px;">
-              ${myChoice === "JOIN" ? (
-                wasSuccess ? `
-                  <div style="background:#064e3b; border:2px solid #059669; padding:20px; border-radius:14px; text-align:center;">
-                    <div style="font-size:32px; margin-bottom:8px;">🎉</div>
-                    <h3 style="font-size:18px; color:#a7f3d0; font-weight:bold;">恭喜！本輪超過門檻值！</h3>
-                    <p style="font-size:15px; color:#ecfdf5; margin-top:4px;">您得到 15 元！</p>
-                    <div style="font-size:12px; color:#6ee7b7; margin-top:8px;">扣除本金 10 元，淨賺 +5 元已計入點數</div>
-                  </div>
-                ` : `
-                  <div style="background:#881337; border:2px solid #e11d48; padding:20px; border-radius:14px; text-align:center;">
-                    <div style="font-size:32px; margin-bottom:8px;">😢</div>
-                    <h3 style="font-size:18px; color:#fecdd3; font-weight:bold;">很可惜！此輪沒有通過！</h3>
-                    <p style="font-size:13px; color:#ffe4e6; margin-top:6px;">投入的 10 元已扣除，請等待下一輪！</p>
-                  </div>
-                `
-              ) : (
-                showExitResult ? `
-                  <div style="background:#1e293b; border:1px solid #475569; padding:20px; border-radius:14px; text-align:center;">
-                    <div style="font-size:24px; margin-bottom:8px;">🛡️</div>
-                    <h3 style="font-size:16px; color:#cbd5e1; font-weight:bold;">您本輪選擇了「退出」</h3>
-                    <p style="font-size:13px; color:#94a3b8; margin-top:4px;">
-                      本輪結果：<b style="color:${wasSuccess?'#34d399':'#f43f5e'};">${wasSuccess ? '加入者達標通過' : '未達門檻'}</b>
-                    </p>
-                    <div style="font-size:12px; color:#64748b; margin-top:6px;">您的本金保持不變，請等待下一輪開始。</div>
-                  </div>
-                ` : `
-                  <div style="background:#1e293b; border:1px solid #334155; padding:24px; border-radius:14px; text-align:center;">
-                    <div style="font-size:24px; margin-bottom:8px;">☕</div>
-                    <h3 style="font-size:16px; color:#cbd5e1;">您已選擇退出</h3>
-                    <p style="font-size:13px; color:#94a3b8; margin-top:4px;">點數未變動，請等待下一輪的開始。</p>
-                  </div>
-                `
-              )}
-            </div>
-          ` : ''}
-
-          <!-- 投票階段按鈕 -->
-          ${isVoting ? `
-            <div style="margin-top:10px;">
-              <div style="font-size:13px; color:#cbd5e1; margin-bottom:8px; text-align:center;">
-                第 ${room.round || 1} 輪投票進行中，請做出您的決策：
-              </div>
-
-              <!-- 加入按鍵 -->
-              <button class="btn btn-join-opt ${myChoice === 'JOIN' ? 'btn-selected' : ''}" onclick="playerMakeChoice('JOIN')">
-                <div style="font-size:17px; font-weight:bold;">🟢 選擇加入</div>
-                <div style="font-size:12px; opacity:0.9; margin-top:4px;">扣除 10 元投入點數。若全場合計達標可得 15 元！</div>
-                ${myChoice === 'JOIN' ? '<div style="margin-top:6px; font-weight:bold; color:#67e8f9;">✓ 已選定加入 (可隨時變更)</div>' : ''}
-              </button>
-
-              <!-- 退出按鍵 -->
-              <button class="btn btn-exit-opt ${myChoice === 'EXIT' ? 'btn-selected' : ''}" onclick="playerMakeChoice('EXIT')">
-                <div style="font-size:17px; font-weight:bold;">⚪ 選擇退出</div>
-                <div style="font-size:12px; opacity:0.9; margin-top:4px;">不扣除任何點數，亦不參與本輪分潤。</div>
-                ${myChoice === 'EXIT' ? '<div style="margin-top:6px; font-weight:bold; color:#67e8f9;">✓ 已選定退出 (可隨時變更)</div>' : ''}
-              </button>
-
-              ${myChoice ? `
-                <div style="text-align:center; font-size:13px; color:#38bdf8; margin-top:14px;">
-                  ✓ 您的決策已傳送，請等待講師公布結果！
-                </div>
-              ` : ''}
-            </div>
-          ` : ''}
-        `}
-      `;
-    }
-
-    // 啟動連線
-    window.addEventListener("load", () => {
-      initFirebase();
-    });
-  </script>
-</body>
-</html>
